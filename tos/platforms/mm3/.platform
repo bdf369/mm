@@ -30,6 +30,7 @@ push( @includes, qw(
   %T/chips/msp430/timer
   %T/chips/msp430/usart
   %T/chips/msp430/dma
+  %T/lib/encap
   %T/lib/timer
   %T/lib/serial
   %T/lib/power

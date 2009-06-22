@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, Eric B. Decker
+ * Copyright (c) 2008-2009, Eric B. Decker
  * All rights reserved.
  */
 
@@ -11,7 +11,6 @@
  * @date   Apr 3 2008
  */ 
 
-#include "AM.h"
 #include "sensors.h"
 
 module mm3CommDataP {
@@ -21,8 +20,8 @@ module mm3CommDataP {
   uses {
     interface Send[uint8_t cid];
     interface SendBusy[uint8_t cid];
-    interface AMPacket;
-    interface Packet;
+    interface AMEncap;
+    interface newPacket;
     interface Panic;
     interface Leds;
   }
@@ -48,6 +47,7 @@ implementation {
     &data_msg[9],
   };
 
+
   /*
    * Accepts a buffer formatted as a data block (see sd_blocks.h) and sends
    * it out the DATA port.
@@ -60,21 +60,31 @@ implementation {
    *
    * If the send returns SUCCESS will get a send_data_done signal back.
    */
+
   command error_t mm3CommData.send_data[uint8_t cid](void *buf, uint8_t len) {
     uint8_t *bp;
     message_t *dm;
+    error_t err;
 
     if (call SendBusy.busy[cid]())
       return EBUSY;
     dm = (void *) dm_p[cid];
-    bp = call Packet.getPayload(dm, len);
+    call newPacket.clear(dm);
+    bp = call newPacket.getPayload(dm, len);
     if (!dm || !bp) {
       call Panic.warn(PANIC_COMM, 10, (uint16_t) dm, (uint16_t) bp, 0, 0);
       return FAIL;
     }
     memcpy(bp, buf, len);
-    call AMPacket.setType(dm, AM_MM3_DATA);
-    call AMPacket.setDestination(dm, AM_BROADCAST_ADDR);
+    call newPacket.setPakLength(dm, len);
+    if ((err = call AMEncap.addEncap(dm))) {
+      call Panic.panic(PANIC_COMM, 12, err, 0, 0, 0);
+      return err;
+    }
+    call AMEncap.setDefault(dm);
+    call AMEncap.setLength(dm, len);
+    call AMEncap.setDestination(dm, AM_BROADCAST_ADDR);
+    call AMEncap.setType(dm, AM_MM3_DATA);
     return call Send.send[cid](dm, len);
   }
 

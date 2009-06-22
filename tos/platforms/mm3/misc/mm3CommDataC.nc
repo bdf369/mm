@@ -1,5 +1,5 @@
 /**
- * Copyright @ 2008 Eric B. Decker
+ * Copyright @ 2008-2009 Eric B. Decker
  * @author Eric B. Decker
  */
 
@@ -17,8 +17,10 @@ implementation {
   components mm3CommSwC;
   mm3CommDataP.Send     -> mm3CommSwC;
   mm3CommDataP.SendBusy -> mm3CommSwC;
-  mm3CommDataP.Packet   -> mm3CommSwC;
-  mm3CommDataP.AMPacket -> mm3CommSwC;
+
+  components newPacketC, AMEncapC;
+  mm3CommDataP.newPacket-> newPacketC;
+  mm3CommDataP.AMEncap  -> AMEncapC;
   
   components LedsC;
   mm3CommDataP.Leds -> LedsC;
