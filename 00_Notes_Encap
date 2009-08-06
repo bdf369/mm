@@ -1,0 +1,12 @@
+
+- reworked message_t so netdata and working data cells are seperate.
+  generates much better code for those parts that don't need network
+  order.
+
+- added nPak interface and nPak{C,P} for accessing base cells.
+
+- added AMEncap interface and AMEncap{C,P} for messing with AM
+  encapsulations.
+
+- added nPakQueue to hold packets in queues that use the new encapsulation.
+

@@ -3,6 +3,8 @@
  * @author Eric B. Decker
  */
 
+#include "mm3_comm.h"
+
 configuration mm3CommDataC {
   provides interface mm3CommData[uint8_t sns_id];
 }
@@ -14,12 +16,15 @@ implementation {
   components PanicC;
   mm3CommDataP.Panic -> PanicC;
 
-  components mm3CommSwC;
-  mm3CommDataP.Send     -> mm3CommSwC;
-  mm3CommDataP.SendBusy -> mm3CommSwC;
+  components new nPakQueueSenderP(MM3_NUM_SENSORS);
+  mm3CommDataP.pakSend  -> nPakQueueSenderP;
+  mm3CommDataP.SendBusy -> nPakQueueSenderP;
 
-  components newPacketC, AMEncapC;
-  mm3CommDataP.newPacket-> newPacketC;
+  components mm3CommDispatchC;
+  nPakQueueSenderP.pakBotSend     -> mm3CommDispatchC.pakSend[MM3_COMM_DATA];
+
+  components nPakC, AMEncapC;
+  mm3CommDataP.nPak-> nPakC;
   mm3CommDataP.AMEncap  -> AMEncapC;
   
   components LedsC;

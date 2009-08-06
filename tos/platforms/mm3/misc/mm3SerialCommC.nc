@@ -1,16 +1,11 @@
 /**
- * Copyright @ 2008 Eric B. Decker
+ * Copyright @ 2008-2009 Eric B. Decker
  * @author Eric B. Decker
  */
  
-#include "sensors.h"
-
 configuration mm3SerialCommC {
   provides {
-    interface Send[uint8_t id];
-    interface SendBusy[uint8_t id];
-    interface AMPacket;
-    interface Packet;
+    interface pakSend;
     interface SplitControl;
   }
   uses {
@@ -20,26 +15,19 @@ configuration mm3SerialCommC {
 }
 
 implementation {
-  components MainC;
-  components mm3SerialCommP;
-  components new SerialAMSenderC(AM_MM3_DATA);
-  components new AMQueueImplP(MM3_NUM_SENSORS), SerialActiveMessageC;
-  
+  components MainC, mm3SerialCommP;
   MainC.SoftwareInit -> mm3SerialCommP;
 
-  Send = AMQueueImplP;
-  SendBusy = AMQueueImplP;
+  pakSend = mm3SerialCommP;
   Resource = mm3SerialCommP;
   ResourceRequested = mm3SerialCommP;
-  AMPacket = SerialAMSenderC;
-  Packet = SerialAMSenderC;
-  SplitControl = SerialActiveMessageC;
+
+  components SerialPakDirectC as SerialSender;
+  SplitControl = SerialSender;
+
+  components SerialAMEncapP, SerialNullEncapP;
+  SerialAMEncapP   <- SerialSender.EncapWrite[ENCAP_AM];
+  SerialNullEncapP <- SerialSender.EncapWrite[ENCAP_SERIAL];
   
-  mm3SerialCommP.SubAMSend[AM_MM3_DATA] -> SerialAMSenderC;
-  AMQueueImplP.AMSend -> mm3SerialCommP.AMSend;
-  AMQueueImplP.Packet -> SerialAMSenderC;
-  AMQueueImplP.AMPacket -> SerialAMSenderC;
-  
-  components LedsC;
-  mm3SerialCommP.Leds -> LedsC;
+  mm3SerialCommP.SubSend -> SerialSender;
 }

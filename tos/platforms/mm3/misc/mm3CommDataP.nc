@@ -18,10 +18,10 @@ module mm3CommDataP {
     interface mm3CommData[uint8_t cid];
   }
   uses {
-    interface Send[uint8_t cid];
+    interface pakSend[uint8_t cid];
     interface SendBusy[uint8_t cid];
     interface AMEncap;
-    interface newPacket;
+    interface nPak;
     interface Panic;
     interface Leds;
   }
@@ -69,26 +69,23 @@ implementation {
     if (call SendBusy.busy[cid]())
       return EBUSY;
     dm = (void *) dm_p[cid];
-    call newPacket.clear(dm);
-    bp = call newPacket.getPayload(dm, len);
+    call nPak.clear(dm);
+    bp = call nPak.getPayload(dm, len);
     if (!dm || !bp) {
       call Panic.warn(PANIC_COMM, 10, (uint16_t) dm, (uint16_t) bp, 0, 0);
       return FAIL;
     }
     memcpy(bp, buf, len);
-    call newPacket.setPakLength(dm, len);
+    call nPak.setPakLength(dm, len);
     if ((err = call AMEncap.addEncap(dm))) {
       call Panic.panic(PANIC_COMM, 12, err, 0, 0, 0);
       return err;
     }
-    call AMEncap.setDefault(dm);
-    call AMEncap.setLength(dm, len);
-    call AMEncap.setDestination(dm, AM_BROADCAST_ADDR);
-    call AMEncap.setType(dm, AM_MM3_DATA);
-    return call Send.send[cid](dm, len);
+    call AMEncap.setEncap(dm, AM_BROADCAST_ADDR, len, AM_MM3_DATA);
+    return call pakSend.send[cid](dm);
   }
 
-  event void Send.sendDone[uint8_t cid](message_t* msg, error_t err) {
+  event void pakSend.sendDone[uint8_t cid](message_t* msg, error_t err) {
     signal mm3CommData.send_data_done[cid](err);
   }
 

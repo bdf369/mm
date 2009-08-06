@@ -55,6 +55,9 @@ typedef union message_header {
   am_header_t     am;
 } message_header_t;
 
+#define ENCAP_RX_RADIO_START  0
+#define ENCAP_RX_SERIAL_START (sizeof(cc2420_header_t) - sizeof(serial_header_t))
+
 typedef union TOSRadioFooter {
   cc2420_footer_t cc2420;
 } message_footer_t;
