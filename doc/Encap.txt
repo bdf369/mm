@@ -1,0 +1,378 @@
+
+nPak message_t Layout
+Eric B. Decker
+8/20/2009
+v 0.1
+
+
+I.   Introduction
+II.  Thoughts/Goals/Assertions/Assumptions
+III. Conceptually
+IV.  Details
+V.   Serial/Radio bridge
+VI.  802.15.4 small(2)/large(8) address bridge
+VII. Local transmission
+
+
+I. Introduction:
+
+Some thoughts on how to implement a constant sized message buffer.  Variable
+headers can be added at the front of the message buffer.  If a header won't fit
+then that header can be wrapped to the end of the message buffer as long
+as there is space.
+
+Some thoughts on control structure for a minimal scatter/gather message
+buffer with minimal split data.  Only two data areas are defined, hence the
+minimalness.
+
+
+II. Thoughts/Goals/Assertions/Assumptions:
+
+1) Payload data is contiguous and not memmoved.
+2) Headers can be added, subtracted, or modified.
+3) A given header must be contiguous.
+4) memmoves are minimized or eliminated completely.
+5) footers are minimal and do not wrap.
+6) control information and metadata are contained in native structures
+   and accessed natively.
+7) Reception always is single block.  Receivers don't handle split
+   buffers.
+8) Variable encapsulators need to handle double block and be able to
+   transition across the split.
+
+
+
+III. Conceptually:
+
+1) just app data.  position is such that header can fit at the front.
+
+     +-----                  +----------+           -----+
+     | ...                   | app_data |            ... |
+     +-----                  +----------+           -----+
+                              |
+                     blk1 ----
+
+                             | blk1_len |
+
+2) add headers as long as headers fit in space in front of app_data.
+
+     +-----+-----------------+----------+           -----+
+     | ... | h_c | h_b | h_a | app_data |            ... |
+     +-----+-----------------+----------+           -----+
+            |
+   blk1 ----
+
+           |            blk1_len        |
+
+
+3) add more headers but h_d won't fit when added.  Space is split into 2.
+
+     +-----+-----------------+----------+            -----+-----+-----+
+     | ... | h_c | h_b | h_a | app_data |             ... | h_e | h_d |
+     +-----+-----------------+----------+            -----+-----+-----+
+            |                                              |
+   blk2 ----                                      blk1 ----
+
+           |            blk2_len        |                 |  blk1_len |
+
+
+
+
+
+IV. Details:
+
+netdata: holds packet data that gets transmitted.  multibyte fields are
+         stored in network order.
+
+         header, data, and footers all need to fit.  ie. sizeof(headers) +
+         TOSH_DATA_SIZE + sizeof(footers).
+
+         Network data is held in two discontiguous areas wholy contained
+         within the netdata area.
+
+         blk1 points to data that should be processed first.  (offset and len)
+         blk2 points to next block that should be processed.
+
+         Only two blocks are defined.
+
+
+pak_len:      total bytes in the packet.  (blk1_len + blk2_len)
+blk1_offset:  where blk1 data starts
+blk1_len:     size of blk1.
+blk2_offset:  where blk2 data starts
+blk2_len:     size of blk2.
+encap:        encapsulation on front of packet, blk1.
+encap_size:   size of encapsulation
+encap_offset: offset where encap starts.
+
+
+Initialized packet (rx or tx) state:  (same as setting to zero).
+
+pak_len:      0
+blk1_offset:  0           blk2_offset: 0
+blk1_len:     0           blk2_len:    0
+encap:        ENCAP_NONE
+encap_offset: 0
+encap_size:   0
+
+
+SERIAL_RX_OFFSET: position where serial starts to receive.
+RADIO_RX_OFFSET:  position where radio starts to receive.
+
+
+V. Serial/Radio bridge
+
+Consider a serial/radio bridge.
+
+Case 1: Serial positioned for easy transformation to Radio.
+
+SERIAL_RX_OFFSET:  3, RADIO_RX_OFFSET: 0
+
+
+header formats (1 byte each line):
+
+Serial          Radio
+
+                len
+                fcf
+                fcf
+dispatch        dsn
+dest            destpan
+dest            destpan
+src             dest
+src             dest
+len             src
+group           src
+type            type
+
+
+
+Serial rx initial state:        Radio rx initial state:
+
+blk1_offset:  3                 blk1_offset:  0
+
+
+Serial -> Radio (after serial rx and before radio tx), payload 10 (0x0a):
+Serial state after reception.  Radio state after transformation and before tx.
+
+        (Serial)                                  (Radio)
+pak_len:      18 (0x12)                         pak_len:     21
+blk2_offset:  0                                 blk2_offset: 0
+blk2_len:     0                                 blk2_len:    0
+encap:        ENCAP_SERIAL                      encap:       ENCAP_RADIO
+encap_offset: 3, encap_size: 8                  encap_offset: 0, encap_size: 11
+
+blk1_offset: 3      --------------           -- blk1_offset: 0
+blk1_len:    18                   |         |   blk1_len:    21
+                                  |         |
+netdata:        0                 |          -> len
+                1                 |             fcf
+                2                 |             fcf
+                3    dispatch  <--              dsn
+                4    dest                       destpan
+                5    dest                       destpan
+                     ...                        ...
+                10   type                       type
+                11   data[0]                    data[0]
+                     ...                        ...
+                20   data[9]                    data[9]
+
+
+
+Case 2: Serial recevied at 0.  Assume netdata size is 32 bytes.
+
+SERIAL_RX_OFFSET:  0, RADIO_RX_OFFSET: 0
+
+Serial rx initial state:        Radio rx initial state:
+
+blk1_offset:  0                 blk1_offset:  0
+
+
+Serial -> Radio (after serial rx and before radio tx), payload 10 (0x0a):
+
+        (Serial)                                  (Radio)
+pak_len:      18 (0x12)                         pak_len:     21
+blk2_offset:  0
+blk2_len:     0
+encap:        ENCAP_SERIAL                      encap:       ENCAP_RADIO
+encap_offset: 0, encap_size: 8                  encap_offset: 21, encap_size: 11
+
+blk1_offset: 0      --------------         ---- blk1_offset: 21
+blk1_len:    18                   |       |     blk1_len:    11
+                                  |       |  -- blk2_offset: 8
+                                  |       | |   blk2_len:    10
+                                  |       | |
+netdata:        0    dispatch  <--        | |   xx
+                1    dest                 | |   xx
+                2    dest                 | |   xx
+                3    ...                  | |   xx
+                7    type                 | |   xx
+                8    data[0]              |  -> data[0]
+                     ...                  |     ...
+                17   data[9]              |     data[9]
+                                          |     ...
+                                          |     ...
+                21                         -->  len
+                22                              fcf
+                23                              fcf
+                24                              dsn
+                25                              destpan
+                26                              destpan
+                                                ...
+                31                              type
+
+
+
+
+VI. 802.15.4 small(2)/large(8) address bridge
+
+header format:
+
+Radio           Radio
+2 byte          8 byte
+(11 bytes)      (23 bytes)
+
+len             len
+fcf             fcf
+fcf             fcf
+dsn             dsn
+destpan         destpan
+destpan         destpan
+dest            dest
+dest            dest
+src             dest
+src             dest
+type            dest
+                dest
+                dest
+                dest
+                src
+                src
+                src
+                src
+                src
+                src
+                src
+                src
+                type
+
+
+assume we have a netdata size of 48 bytes and a payload of 10.
+
+Receive offset of 0.
+
+        (Radio, 2 byte addr)                      (Radio, 8 byte addr)
+pak_len:      21                                pak_len:     33
+encap:        ENCAP_RADIO                       encap:       ENCAP_RADIO_L
+encap_offset: 0, encap_size: 11                 encap_offset: 25, encap_size: 23
+
+blk1_offset: 0      --------------         ---- blk1_offset: 25
+blk1_len:    21                   |       |     blk1_len:    23
+blk2_offset: 0                    |       |  -- blk2_offset: 11
+blk2_len:    0                    |       | |   blk2_len:    10
+                                  |       | |
+netdata:        0    len       <--        | |   xx
+                1    fcf                  | |   xx
+                2    fcf                  | |   xx
+                3    dsn                  | |   xx
+                4    destpan              | |   xx
+                5    destpan              | |   xx
+                6    dest                 | |   xx
+                7    dest                 | |   xx
+                8    src                  | |   xx
+                9    src                  | |   xx
+               10    type                 | |   xx
+               11    data[0]              |  -> data[0]
+                     ...                  |     ...
+               20    data[9]              |     data[9]
+                                          |     ...
+                                          |     ...
+               25                          -->  len
+               26                               fcf
+               27                               fcf
+               28                               dsn
+               29                               destpan
+               30                               destpan
+               31                               dest
+               32                               dest
+               33                               dest
+               34                               dest
+               35                               dest
+               36                               dest
+               37                               dest
+               38                               dest
+               39                               src
+               40                               src
+               41                               src
+               42                               src
+               43                               src
+               44                               src
+               45                               src
+               46                               src
+               47                               type
+
+
+
+VII. Local transmission:
+
+Payload offset for a fresh transmit buffer is 0.  Netdata size is 32.
+
+A 10 byte payload is created.  We show what it looks like when sent through
+the AM layer -> Serial and AM layer -> Radio (2 byte addr).
+
+Application loads its data and builds the packet.  Packet is given an AM layer
+encapsulation to remember the dest, src and other protocol parameters.
+
+pak_len:      10                                pak_len:     17
+encap:        ENCAP_APP                         encap:       ENCAP_AM
+encap_offset: 0, encap_size: 0                  encap_offset: 25, encap_size: 7
+
+blk1_offset: 0      --------------         ---- blk1_offset: 25
+blk1_len:    10                   |       |     blk1_len:    7
+blk2_offset: 0                    |       |  -- blk2_offset: 0
+blk2_len:    0                    |       | |   blk2_len:    10
+                                  |       | |
+netdata:        0    data[0]   <--        |  -> data[0]
+                      ...                 |      ...
+                9    data[9]              |     data[9]
+                     ...                  |     ...
+                                          |     ...
+               25                          -->  dest
+               26                               dest
+               27                               src
+               28                               src
+               29                               len
+               30                               group
+               31                               type
+
+
+The next two packets show what happens if the AM encap packet is handed to
+the serial stack (left side) or the radio stack (right side).  Both of these
+stacks do a simple transformation, the AM encap is removed.
+
+
+pak_len:      18                                pak_len:     21
+encap:        ENCAP_SERIAL                      encap:       ENCAP_RADIO
+encap_offset: 24, encap_size: 8                 encap_offset: 21, encap_size: 11
+
+blk1_offset: 24      --------------        ---- blk1_offset: 21
+blk1_len:    8                     |      |     blk1_len:    11
+blk2_offset: 0       ----------    |      |  -- blk2_offset: 0
+blk2_len:    10                |   |      | |   blk2_len:    10
+                               |   |      | |
+netdata:        0    data[0] <-    |      |  -> data[0]
+                      ...          |      |      ...
+                9    data[9]       |      |     data[9]
+                     ...           |      |     ...
+                                   |      |     ...
+               21                  |       ->   len
+               22                  |            fcf
+               23                  |            fcf
+               24    dispatch  <---             dsn
+               25    dest                       destpan
+               26    dest                       destpan
+               27    src                        dest
+               28    src                        dest
+               29    len                        src
+               30    group                      src
+               31    type                       type
