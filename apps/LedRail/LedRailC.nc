@@ -12,7 +12,14 @@ module LedRailC {
   uses interface Leds;
 }
 implementation {
-  uint32_t task_counter;
+  /* without initialization this seems to only get 1 byte allocated, eg (main.sym):
+   * 00001110 B LedRailC__task_counter
+   */
+  uint32_t task_counter = 100000;
+
+  /* make this big enough that we can see the task running */
+  /* having this as a variable makes it easy to adjust in gdb */
+  uint32_t task_max = 500000000;
 
   event void Boot.booted() {
     nop();
@@ -26,26 +33,11 @@ implementation {
     call PwrReg.pwrReq();
   }
 
-  task void doStuff() {
-    uint32_t i;
-
+  task void stuffDone() {
     nop();
-
-    /* here we light up Led1 after getting this notification */
-    /* if we add 2 timers we can light Led2 using the second timer */
-    call Leds.led1On();
-
-    /* Pretend to do stuff for a while */
-    for (i=0; i < 5000; i++) {
-      task_counter++;
-    }
-
-    if (task_counter < 100000) {
-      post doStuff();
-      return;
-    }
-
-    call Leds.led2Off();
+    nop();
+    nop();
+    call Leds.led1Off();
 
     /* release demand for power */
     call PwrReg.pwrRel();
@@ -54,8 +46,32 @@ implementation {
     call Timer0.startOneShot(2000);
   }
 
+  task void doStuff() {
+    uint32_t i;
+
+    nop();
+    nop();
+    nop();
+
+    /* Pretend to do stuff for a while */
+    for (i=0; i < 5000; i++) {
+      task_counter++;
+    }
+
+    if (task_counter < task_max) {
+      post doStuff();
+    } else {
+      post stuffDone();
+    }
+  }
+
   event void PwrReg.pwrAvail() {
     nop();
+
+    /* here we light up Led1 after getting this notification */
+    /* if we add 2 timers we can light Led2 using the second timer */
+    call Leds.led1On();
+
     /* do something and then release power */
     task_counter = 0;
     post doStuff();

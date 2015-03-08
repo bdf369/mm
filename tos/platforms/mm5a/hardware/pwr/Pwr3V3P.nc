@@ -49,7 +49,7 @@ implementation {
 
     if (m_refcount == 0) {
       m_pwr3v3_state = P3V3_OFF;
-      call Enable.led1Off();
+      call Enable.led0Off();
       call VoutTimer.stop();
     }
   }
