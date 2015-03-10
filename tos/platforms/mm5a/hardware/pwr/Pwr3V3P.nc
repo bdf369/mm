@@ -4,7 +4,7 @@
 
 module Pwr3V3P {
   provides interface PwrReg;
-  uses interface Leds as Enable;
+  uses interface GeneralIO as Pwr3V3Enable;
 
   /* Timer to wait for Vout rise delay */
   uses interface Timer<TMilli> as VoutTimer;
@@ -31,13 +31,8 @@ implementation {
     }
     if (m_pwr3v3_state == P3V3_OFF) {
       m_pwr3v3_state = P3V3_STARTING;
-
-      /*
-       * turn led0 on to simulate enabling regulator
-       * start a timer equal to Vout rise time delay
-       */
-      call Enable.led0On();
-      call VoutTimer.startOneShot(3000);
+      call Pwr3V3Enable.set();
+      call VoutTimer.startOneShot(PWR3V3_VOUT_RISETIME);
     }
     return SUCCESS;
   }
@@ -49,7 +44,7 @@ implementation {
 
     if (m_refcount == 0) {
       m_pwr3v3_state = P3V3_OFF;
-      call Enable.led0Off();
+      call Pwr3V3Enable.clr();
       call VoutTimer.stop();
     }
   }

@@ -1,11 +1,11 @@
 /*
- * LedRailC
+ * LedRailP
  *
  * Drives the PowerRail interface using a timer.
  */
 
 
-module LedRailC {
+module LedRailP {
   uses interface Boot;
   uses interface Timer<TMilli> as Timer0;
   uses interface PwrReg;
@@ -13,7 +13,7 @@ module LedRailC {
 }
 implementation {
   /* without initialization this seems to only get 1 byte allocated, eg (main.sym):
-   * 00001110 B LedRailC__task_counter
+   * 00001110 B LedRailP__task_counter
    */
   uint32_t task_counter = 100000;
 
