@@ -3,7 +3,8 @@
  */
 
 /* tps78233 output rise delay in msec */
-#define PWR3V3_VOUT_RISETIME 5
+/* hack -- made risetime 10msec to allow chips to boot */
+#define PWR3V3_VOUT_RISETIME 10
 
 configuration Pwr3V3C {
   provides interface PwrReg;
