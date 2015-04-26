@@ -32,45 +32,34 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * @author Eric Decker
+ * @date Feb 25, 2010
  */
 
-#ifndef _H_PLATFORM_SIRF3_SERIAL_H_
-#define _H_PLATFORM_SIRF3_SERIAL_H_
+#ifndef _H_PLATFORM_SERIAL_DOCK_H
+#define _H_PLATFORM_SERIAL_DOCK_H
 
 #include "msp430usci.h"
 
 /*
- * MM4, 2618, USCI
+ * MM4, 2618, UCSI, Assigned to USCI A1, uart.
  */
 
-const msp430_uart_union_config_t sirf3_4800_serial_config = { {
-  ubr:		UBR_8MIHZ_4800,
-  umctl:	UMCTL_8MIHZ_4800,
+const msp430_uart_union_config_t dock_serial_config = { {
+
+//       ubr:   UBR_8MIHZ_57600,
+//       umctl: UMCTL_8MIHZ_57600,
+
+  ubr:		UBR_8MIHZ_115200,
+  umctl:	UMCTL_8MIHZ_115200,
   ucmode:	0,			// uart
   ucspb:	0,			// one stop
   uc7bit:	0,			// 8 bit
   ucpar:	0,			// odd parity (but no parity)
   ucpen:	0,			// parity disabled
   ucrxeie:	0,			// err int off
-  ucssel:	2,			// smclk
+  ucssel:	0x02,			// smclk
   utxe:		1,			// enable tx
   urxe:		1,			// enable rx
-} };
+  } };
 
-
-const msp430_uart_union_config_t sirf3_57600_serial_config = { {
-  ubr:		UBR_8MIHZ_57600,
-  umctl:	UMCTL_8MIHZ_57600,
-  ucmode:	0,			// uart
-  ucspb:	0,			// one stop
-  uc7bit:	0,			// 8 bit
-  ucpar:	0,			// odd parity (but no parity)
-  ucpen:	0,			// parity disabled
-  ucrxeie:	0,			// err int off
-  ucssel:	2,			// smclk
-  utxe:		1,			// enable tx
-  urxe:		1,			// enable rx
-} };
-
-
-#endif	/* _H_PLATFORM_SIRF3_SERIAL_H_ */
+#endif	/* _H_PLATFORM_SERIAL_DOCK_H */
